@@ -27,13 +27,20 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+AMPY="$SCRIPT_DIR/.venv/bin/ampy"
 PORT="${AMPY_PORT:-/dev/ttyUSB0}"
 
 # Files to upload — order matters: dependencies first
 FILES=(
     "config.py"              # env: WiFi + Prometheus credentials
+    "board_config.py"        # hardware reference
+    "xpt2046.py"             # touch controller driver
+    "market_data.py"         # market data fetcher
     "ili9341.py"             # display driver
-    "home_server_display.py" # main app
+    "home_server_display.py" # server screen + Prometheus helpers
+    "market_screen.py"       # market screen drawing
+    "app.py"                 # main loop
     "main.py"                # boot entry point
 )
 
@@ -43,7 +50,7 @@ echo ""
 for f in "${FILES[@]}"; do
     if [[ -f "$f" ]]; then
         echo -n "  Uploading $f ... "
-        ampy --port "$PORT" put "$f"
+        "$AMPY" --port "$PORT" put "$f"
         echo "done"
     else
         echo "  SKIP $f (not found)"
@@ -54,7 +61,7 @@ echo ""
 
 if [[ "$1" != "--no-reboot" ]]; then
     echo -n "  Rebooting ESP32 ... "
-    ampy --port "$PORT" reset
+    "$AMPY" --port "$PORT" reset
     echo "done"
     echo ""
     echo "Connect to serial console:"
