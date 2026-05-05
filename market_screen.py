@@ -43,9 +43,9 @@ def draw_screen(disp, data, uptime_str):
     """
     disp.fill(BLACK)
 
-    btc         = data.get("btc")
-    gold_buy    = data.get("gold_buy")
-    gold_sell   = data.get("gold_sell")
+    btc = data.get("btc")
+    gold_buy = data.get("gold_buy")
+    gold_sell = data.get("gold_sell")
     gold_change = data.get("gold_change") or 0
 
     # -- Title bar ------------------------------------------------------------
@@ -57,25 +57,28 @@ def draw_screen(disp, data, uptime_str):
     if gold_buy is not None:
         change_color = GREEN if gold_change >= 0 else RED
         disp.draw_text(
-            "Buy:{}  Sell:{}".format(_fmt_millions(gold_buy), _fmt_millions(gold_sell)),
-            0, 56, YELLOW, BLACK, scale=1,
+            "Buy:{}  Sell:{}".format(_fmt_millions(
+                gold_buy), _fmt_millions(gold_sell)),
+            0, 64, YELLOW, BLACK, scale=1,
         )
         disp.draw_text(
             "Change: {}".format(_fmt_change(gold_change)),
-            0, 68, change_color, BLACK, scale=1,
+            0, 80, change_color, BLACK, scale=1,
         )
     else:
         disp.draw_text("N/A", 0, 56, DARK_GRAY, BLACK, scale=1)
-    disp.hline(0, 82, SCREEN_W, DARK_GRAY)
+    disp.hline(0, 104, SCREEN_W, DARK_GRAY)
 
     # -- Bitcoin --------------------------------------------------------------
-    disp.draw_text("BITCOIN", 0, 88, WHITE, BLACK, scale=2)
+    disp.draw_text("BITCOIN", 0, 110, WHITE, BLACK, scale=2)
     if btc is not None:
-        disp.draw_text("$" + _fmt_commas(int(btc)), 0, 110, CYAN, BLACK, scale=2)
+        disp.draw_text("$" + _fmt_commas(int(btc)),
+                       0, 132, CYAN, BLACK, scale=2)
     else:
-        disp.draw_text("N/A", 0, 110, DARK_GRAY, BLACK, scale=2)
-    disp.hline(0, 136, SCREEN_W, DARK_GRAY)
+        disp.draw_text("N/A", 0, 132, DARK_GRAY, BLACK, scale=2)
+    disp.hline(0, 158, SCREEN_W, DARK_GRAY)
 
     # -- Footer ---------------------------------------------------------------
-    disp.draw_text("Updated: " + uptime_str, 0, 142, DARK_GRAY, BLACK, scale=1)
-    disp.draw_text("Tap to go back",          0, 154, DARK_GRAY, BLACK, scale=1)
+    disp.draw_text("Updated: " + uptime_str, 0, 164, DARK_GRAY, BLACK, scale=1)
+    disp.draw_text("Tap to go back",          0,
+                   176, DARK_GRAY, BLACK, scale=1)
