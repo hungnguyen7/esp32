@@ -2,10 +2,9 @@
 app.py - Main application loop for ESP32 CYD home display.
 
 Manages hardware init, WiFi, screen state, touch toggling,
-and periodic data refresh. Three screens cycle on tap:
-  SCREEN_SERVER   : Prometheus home server metrics
-  SCREEN_MARKET   : Gold DOJI HCM + BTC prices
-  SCREEN_TERMINAL : Terminal output from home server (via USB serial)
+and periodic data refresh. Two screens cycle on tap:
+  SCREEN_SERVER : Prometheus home server metrics
+  SCREEN_MARKET : Gold DOJI HCM + BTC prices
 """
 import time
 from machine import Pin, SPI
@@ -15,12 +14,10 @@ from xpt2046 import XPT2046
 import home_server_display as server
 import market_screen as market
 import market_data as md
-import terminal_screen as terminal
 
 # -- Screen IDs ---------------------------------------------------------------
 SCREEN_SERVER = 0
 SCREEN_MARKET = 1
-SCREEN_TERMINAL = 2
 
 # -- Refresh intervals --------------------------------------------------------
 SERVER_INTERVAL_SEC = 15
@@ -28,20 +25,20 @@ MARKET_INTERVAL_SEC = 60
 
 # -- Hardware pins ------------------------------------------------------------
 # Display (HSPI, bus 1)
-LCD_CLK_PIN = 14
+LCD_CLK_PIN  = 14
 LCD_MOSI_PIN = 13
 LCD_MISO_PIN = 12
-LCD_CS_PIN = 15
-LCD_DC_PIN = 2
-LCD_RST_PIN = 4
-LCD_BL_PIN = 21
+LCD_CS_PIN   = 15
+LCD_DC_PIN   = 2
+LCD_RST_PIN  = 4
+LCD_BL_PIN   = 21
 
 # Touch (VSPI, bus 2)
-TOUCH_CLK_PIN = 25
+TOUCH_CLK_PIN  = 25
 TOUCH_MOSI_PIN = 32
 TOUCH_MISO_PIN = 39
-TOUCH_CS_PIN = 33
-TOUCH_IRQ_PIN = 36
+TOUCH_CS_PIN   = 33
+TOUCH_IRQ_PIN  = 36
 
 
 def main():
@@ -72,49 +69,40 @@ def main():
     time.sleep(1)
 
     # State
-    boot_time = time.time()
+    boot_time      = time.time()
     current_screen = SCREEN_SERVER
-    redraw = True
-    last_server_t = time.time() - SERVER_INTERVAL_SEC  # fetch immediately
-    last_market_t = 0
-    last_terminal_t = 0
-    server_cache = {}
-    market_cache = None
+    redraw         = True
+    last_server_t  = time.time() - SERVER_INTERVAL_SEC  # fetch immediately
+    last_market_t  = 0
+    server_cache   = {}
+    market_cache   = None
 
     while True:
-        # Read incoming terminal data continuously
-        terminal.read_serial_lines()
-
         # Touch: switch screen on falling edge (finger down)
         if touch.tapped():
-            current_screen = (current_screen + 1) % 3
+            current_screen = 1 - current_screen
             redraw = True
 
-        now_s = time.time()
+        now_s  = time.time()
         uptime = server.format_uptime(now_s - boot_time)
 
         if current_screen == SCREEN_SERVER:
             if (now_s - last_server_t) >= SERVER_INTERVAL_SEC:
-                server_cache = server.fetch_metrics()
+                server_cache  = server.fetch_metrics()
                 last_server_t = now_s
-                redraw = True
+                redraw        = True
             if redraw:
                 server.draw_screen(disp, server_cache, "IP " + wifi_ip, uptime)
                 redraw = False
 
-        elif current_screen == SCREEN_MARKET:
+        else:  # SCREEN_MARKET
             if market_cache is None or (now_s - last_market_t) >= MARKET_INTERVAL_SEC:
                 market.draw_loading(disp)
-                market_cache = md.fetch_all()
+                market_cache  = md.fetch_all()
                 last_market_t = now_s
-                redraw = True
+                redraw        = True
             if redraw:
                 market.draw_screen(disp, market_cache, uptime)
                 redraw = False
-
-        else:  # SCREEN_TERMINAL
-            if (now_s - last_terminal_t) >= 0.5:  # Refresh 2x per second
-                terminal.draw_terminal_screen(disp)
-                last_terminal_t = now_s
 
         time.sleep_ms(100)
