@@ -46,9 +46,9 @@ def fetch_gold_doji():
         data = json.loads(r.content)
         r.close()
         if data.get("success"):
-            buy = int(data["buy"])
-            sell = int(data["sell"])
-            change_buy = int(data.get("change_buy", 0) or 0)
+            buy = int(data["buy"]) / 10
+            sell = int(data["sell"]) / 10
+            change_buy = int(data.get("change_buy", 0) or 0) / 10
             return buy, sell, change_buy
     except Exception as e:
         print("Gold error:", e)
