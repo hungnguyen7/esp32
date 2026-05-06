@@ -40,6 +40,7 @@ FILES=(
     "ili9341.py"             # display driver
     "home_server_display.py" # server screen + Prometheus helpers
     "market_screen.py"       # market screen drawing
+    "terminal_screen.py"     # terminal screen + serial input
     "app.py"                 # main loop
     "main.py"                # boot entry point
 )
