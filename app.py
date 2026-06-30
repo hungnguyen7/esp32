@@ -70,7 +70,7 @@ def main():
 
     # State
     boot_time      = time.time()
-    current_screen = SCREEN_SERVER
+    current_screen = SCREEN_MARKET
     redraw         = True
     last_server_t  = time.time() - SERVER_INTERVAL_SEC  # fetch immediately
     last_market_t  = 0

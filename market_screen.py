@@ -39,46 +39,57 @@ def draw_loading(disp):
 def draw_screen(disp, data, uptime_str):
     """
     Render the market screen.
-    data keys: btc, gold_buy, gold_sell, gold_change
+    data keys: btc, gold_buy, gold_sell, gold_change, tt_buy, tt_sell
+    Layout (320×240):
+      y=0   title bar (28px)
+      y=30  DOJI HCM label (scale=1) + Mua/Ban (scale=2 each line)
+      y=90  divider
+      y=94  THANH TAM label (scale=1) + Mua/Ban (scale=2 each line)
+      y=144 divider
+      y=148 BTC label (scale=1) + price (scale=2)
+      y=178 divider
+      y=182 uptime (scale=1, single line)
     """
     disp.fill(BLACK)
 
-    btc = data.get("btc")
-    gold_buy = data.get("gold_buy")
-    gold_sell = data.get("gold_sell")
+    btc         = data.get("btc")
+    gold_buy    = data.get("gold_buy")
+    gold_sell   = data.get("gold_sell")
     gold_change = data.get("gold_change") or 0
+    tt_buy      = data.get("tt_buy")
+    tt_sell     = data.get("tt_sell")
 
     # -- Title bar ------------------------------------------------------------
     disp.fill_rect(0, 0, SCREEN_W, 28, ORANGE)
     disp.draw_text("MARKET DATA", 80, 6, BLACK, ORANGE, scale=2)
 
     # -- Gold DOJI HCM --------------------------------------------------------
-    disp.draw_text("GOLD DOJI HCM", 0, 34, YELLOW, BLACK, scale=2)
+    disp.draw_text("GOLD DOJI HCM", 0, 30, YELLOW, BLACK, scale=1)
     if gold_buy is not None:
         change_color = GREEN if gold_change >= 0 else RED
-        disp.draw_text(
-            "Buy:{}  Sell:{}".format(_fmt_millions(
-                gold_buy), _fmt_millions(gold_sell)),
-            0, 64, YELLOW, BLACK, scale=1,
-        )
-        disp.draw_text(
-            "Change: {}".format(_fmt_change(gold_change)),
-            0, 80, change_color, BLACK, scale=1,
-        )
+        disp.draw_text("Mua: " + _fmt_millions(gold_buy),  0, 40, YELLOW, BLACK, scale=2)
+        disp.draw_text("Ban: " + _fmt_millions(gold_sell),  0, 58, YELLOW, BLACK, scale=2)
+        disp.draw_text("Change: " + _fmt_change(gold_change), 0, 78, change_color, BLACK, scale=1)
     else:
-        disp.draw_text("N/A", 0, 56, DARK_GRAY, BLACK, scale=1)
-    disp.hline(0, 104, SCREEN_W, DARK_GRAY)
+        disp.draw_text("N/A", 0, 40, DARK_GRAY, BLACK, scale=2)
+    disp.hline(0, 90, SCREEN_W, DARK_GRAY)
+
+    # -- Gold Thanh Tâm 9999 --------------------------------------------------
+    disp.draw_text("GOLD THANH TAM 9999", 0, 94, YELLOW, BLACK, scale=1)
+    if tt_buy is not None:
+        disp.draw_text("Mua: " + _fmt_millions(tt_buy),  0, 104, YELLOW, BLACK, scale=2)
+        disp.draw_text("Ban: " + _fmt_millions(tt_sell), 0, 122, YELLOW, BLACK, scale=2)
+    else:
+        disp.draw_text("N/A", 0, 104, DARK_GRAY, BLACK, scale=2)
+    disp.hline(0, 144, SCREEN_W, DARK_GRAY)
 
     # -- Bitcoin --------------------------------------------------------------
-    disp.draw_text("BITCOIN", 0, 110, WHITE, BLACK, scale=2)
+    disp.draw_text("BITCOIN", 0, 148, WHITE, BLACK, scale=1)
     if btc is not None:
-        disp.draw_text("$" + _fmt_commas(int(btc)),
-                       0, 132, CYAN, BLACK, scale=2)
+        disp.draw_text("$" + _fmt_commas(int(btc)), 0, 158, CYAN, BLACK, scale=2)
     else:
-        disp.draw_text("N/A", 0, 132, DARK_GRAY, BLACK, scale=2)
-    disp.hline(0, 158, SCREEN_W, DARK_GRAY)
+        disp.draw_text("N/A", 0, 158, DARK_GRAY, BLACK, scale=2)
+    disp.hline(0, 178, SCREEN_W, DARK_GRAY)
 
     # -- Footer ---------------------------------------------------------------
-    disp.draw_text("Updated: " + uptime_str, 0, 164, DARK_GRAY, BLACK, scale=1)
-    disp.draw_text("Tap to go back",          0,
-                   176, DARK_GRAY, BLACK, scale=1)
+    disp.draw_text(uptime_str, 0, 182, DARK_GRAY, BLACK, scale=1)
