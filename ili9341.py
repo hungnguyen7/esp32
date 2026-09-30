@@ -25,6 +25,11 @@ _VMCTR2 = const(0xC7)
 _GMCTRP1 = const(0xE0)
 _GMCTRN1 = const(0xE1)
 
+# Pre-built command bytes for the window-set hot path
+_B_CASET = b"\x2A"
+_B_PASET = b"\x2B"
+_B_RAMWR = b"\x2C"
+
 # Colors — RGB565 big-endian (as sent to ILI9341)
 BLACK = const(0x0000)
 WHITE = const(0xFFFF)
@@ -50,6 +55,11 @@ class ILI9341:
         self.rst = Pin(rst_pin, Pin.OUT)
         self.width = width
         self.height = height
+        # Reused buffers: avoid per-call allocations in the hot drawing paths
+        self._rows = bytearray(4)
+        self._cols = bytearray(4)
+        self._fill_color = -1
+        self._fill_chunk = b""
         self._init_display()
 
     # ---- Low-level SPI helpers ----------------------------------------
@@ -83,7 +93,7 @@ class ILI9341:
         self._cmd(_COLMOD)
         self._data(bytes([0x55]))          # 16-bit/pixel
         self._cmd(_MADCTL)
-        self._data(bytes([0x68]))          # Landscape MV=1 MX=1, BGR
+        self._data(bytes([0x60]))          # Landscape MV=1 MX=1, RGB order
 
         self._cmd(_FRMCTR1)
         self._data(bytes([0x00, 0x1B]))
@@ -116,11 +126,25 @@ class ILI9341:
     def _set_window(self, x0, y0, x1, y1):
         # MV=1 landscape: CASET addresses the physical-row (Y) axis,
         # PASET addresses the physical-column (X) axis.
-        self._cmd(_CASET)
-        self._data(bytes([y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF]))
-        self._cmd(_PASET)
-        self._data(bytes([x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF]))
-        self._cmd(_RAMWR)
+        # Whole sequence in one CS assertion with reused buffers (hot path).
+        r, c, dc, spi = self._rows, self._cols, self.dc, self.spi
+        r[0] = y0 >> 8; r[1] = y0 & 0xFF; r[2] = y1 >> 8; r[3] = y1 & 0xFF
+        c[0] = x0 >> 8; c[1] = x0 & 0xFF; c[2] = x1 >> 8; c[3] = x1 & 0xFF
+        self.cs(0)
+        dc(0); spi.write(_B_CASET)
+        dc(1); spi.write(r)
+        dc(0); spi.write(_B_PASET)
+        dc(1); spi.write(c)
+        dc(0); spi.write(_B_RAMWR)
+        self.cs(1)
+
+    def blit_row(self, x, y, w, buf):
+        """Write one row of w pixels at (x, y); buf is RGB565 big-endian, 2*w bytes."""
+        self._set_window(x, y, x + w - 1, y)
+        self.dc(1)
+        self.cs(0)
+        self.spi.write(buf)
+        self.cs(1)
 
     # ---- Drawing primitives -----------------------------------------
 
@@ -146,16 +170,18 @@ class ILI9341:
         x1 = min(x + w - 1, self.width - 1)
         y1 = min(y + h - 1, self.height - 1)
         self._set_window(x, y, x1, y1)
-        hi, lo = (color >> 8) & 0xFF, color & 0xFF
-        chunk = bytes([hi, lo] * 32)
+        if color != self._fill_color:  # cache a 256-pixel chunk per colour
+            self._fill_color = color
+            self._fill_chunk = bytes(((color >> 8) & 0xFF, color & 0xFF)) * 256
+        chunk = self._fill_chunk
         total = (x1 - x + 1) * (y1 - y + 1)
         self.dc(1)
         self.cs(0)
-        for _ in range(total // 32):
+        for _ in range(total // 256):
             self.spi.write(chunk)
-        rem = total % 32
+        rem = total % 256
         if rem:
-            self.spi.write(bytes([hi, lo] * rem))
+            self.spi.write(memoryview(chunk)[:rem * 2])
         self.cs(1)
 
     def hline(self, x, y, w, color):
