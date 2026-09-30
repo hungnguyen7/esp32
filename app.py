@@ -2,12 +2,13 @@
 app.py - Main application loop for ESP32 CYD home display.
 
 Manages hardware init, WiFi, screen state, touch toggling,
-and periodic data refresh. Four screens cycle on tap
-(Market -> Cockpit -> Gundam -> Server -> Market):
+and periodic data refresh. Five screens cycle on tap
+(Market -> Cockpit -> Zaku cockpit -> Gundam -> Server -> Market):
   SCREEN_SERVER : Prometheus home server metrics
   SCREEN_MARKET : Gold DOJI HCM, Gold Thanh Tam + BTC prices
   SCREEN_GUNDAM : static RX-78-2 vs Zaku pixel-art showcase
   SCREEN_COCKPIT: animated RX-78-2 cockpit HUD view (tick() each loop)
+  SCREEN_ZAKU_COCKPIT: animated Zeon-style Zaku cockpit view (tick() each loop)
 """
 import time
 from machine import Pin, SPI
@@ -18,6 +19,7 @@ import home_server_display as server
 import market_screen as market
 import gundam_screen as gundam
 import cockpit_screen as cockpit
+import zaku_cockpit_screen as zaku_cockpit
 import market_data as md
 
 # -- Screen IDs ---------------------------------------------------------------
@@ -25,9 +27,11 @@ SCREEN_SERVER  = 0
 SCREEN_MARKET  = 1
 SCREEN_GUNDAM  = 2
 SCREEN_COCKPIT = 3
+SCREEN_ZAKU_COCKPIT = 4
 
 # Tap order (first entry is the boot screen)
-SCREEN_ORDER = (SCREEN_MARKET, SCREEN_COCKPIT, SCREEN_GUNDAM, SCREEN_SERVER)
+SCREEN_ORDER = (SCREEN_MARKET, SCREEN_COCKPIT, SCREEN_ZAKU_COCKPIT,
+                SCREEN_GUNDAM, SCREEN_SERVER)
 
 # -- Refresh intervals --------------------------------------------------------
 SERVER_INTERVAL_SEC = 15
@@ -117,6 +121,13 @@ def main():
                 redraw = False
             else:
                 cockpit.tick(disp)  # partial redraws only (radar, HUD, target)
+
+        elif current_screen == SCREEN_ZAKU_COCKPIT:
+            if redraw:
+                zaku_cockpit.draw_screen(disp)
+                redraw = False
+            else:
+                zaku_cockpit.tick(disp)
 
         else:  # SCREEN_MARKET
             if market_cache is None or (now_s - last_market_t) >= MARKET_INTERVAL_SEC:

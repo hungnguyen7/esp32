@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MicroPython firmware for an **ESP32-CYD** (Cheap Yellow Display) board running on the device itself. The device displays four screens cycled by touch (Market → Cockpit → Gundam → Server; `SCREEN_ORDER` in `app.py`):
+MicroPython firmware for an **ESP32-CYD** (Cheap Yellow Display) board running on the device itself. The device displays five screens cycled by touch (Market → Cockpit → Zaku cockpit → Gundam → Server; `SCREEN_ORDER` in `app.py`):
 - **Server screen**: Home server metrics pulled from a local Prometheus instance
 - **Market screen**: Live Gold DOJI HCM, Gold Thanh Tâm (VND) and BTC/USDT prices
 - **Gundam screen**: Static pixel-art RX-78-2 vs Char's Zaku
 - **Cockpit screen**: Animated RX-78-2 cockpit view (panoramic monitor HUD, radar sweep, heading tape, locked-on Zaku, beam shots)
+- **Zaku cockpit screen**: Animated Zeon-style MS-06S cockpit (amber HUD, mono-eye scanner, fan radar, RX-78-2 target, MG tracers, incoming beam hits)
 
 All `.py` files in the root are uploaded to the ESP32 filesystem and run under MicroPython. The host machine only needs the venv tools (`ampy`, `esptool`) to flash/upload.
 
@@ -54,6 +55,7 @@ gundam_theme.py      → shared RX-78-2 theme: palette, header/footer, chamfered
 market_screen.py     → market screen drawing
 gundam_screen.py     → static RX-78-2 vs Zaku pixel-art screen (sprites as char grids, RLE → fill_rect)
 cockpit_screen.py    → cockpit HUD screen: draw_screen() full frame, tick() partial-region animation called from the main loop
+zaku_cockpit_screen.py → Zeon-style Zaku cockpit: same draw_screen()/tick() pattern, reuses cockpit_screen helpers
 ```
 
 **Data flow**: `app.py` drives the loop → calls fetch functions in `home_server_display.py` / `market_data.py` → passes result dicts to screen drawing functions → drawing functions call `ILI9341` methods directly.

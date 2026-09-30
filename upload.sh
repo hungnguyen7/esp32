@@ -43,6 +43,7 @@ FILES=(
     "market_screen.py"       # market screen drawing
     "gundam_screen.py"       # RX-78-2 vs Zaku pixel-art screen
     "cockpit_screen.py"      # RX-78-2 cockpit HUD screen (uses gundam_screen)
+    "zaku_cockpit_screen.py" # Zaku cockpit HUD screen (uses cockpit_screen)
     "app.py"                 # main loop
     "main.py"                # boot entry point
 )
