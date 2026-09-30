@@ -47,7 +47,7 @@ board_config.py      → hardware constants (GPIO pins, SPI settings, display ge
 ili9341.py           → ILI9341 display driver (SPI, RGB565, draw_text, fill_rect, etc.)
 xpt2046.py           → XPT2046 touch controller driver (tapped() polled in main loop)
 home_server_display.py → WiFi init, Prometheus queries, server screen drawing
-market_data.py       → BTC (Binance) + Gold DOJI HCM (vang.today) HTTP fetchers
+market_data.py       → BTC (Binance) + Gold DOJI HCM (vang.today) + Gold Thanh Tâm (tuanquangdong.com) HTTP fetchers
 market_screen.py     → market screen drawing
 ```
 

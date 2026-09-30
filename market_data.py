@@ -4,7 +4,7 @@ market_data.py - Live market data fetcher (Gold DOJI HCM, Gold Thanh Tâm, BTC).
 Sources:
   BTC       : Binance public ticker API
   DOJI HCM  : vang.today API
-  Thanh Tâm : giavangmaothiet.com HTML scrape (table.goldbox-table, row Vàng 9999)
+  Thanh Tâm : tuanquangdong.com live-price JSON (row Vàng 9999)
 """
 try:
     import urequests as requests
@@ -58,69 +58,34 @@ def fetch_gold_doji():
 
 def fetch_gold_thanhtam():
     """
-    Vàng 9999 24k Thanh Tâm (Sóc Trăng) from giavangmaothiet.com.
-    Streams HTML in 256-byte chunks. Works entirely with bytes to avoid
-    Unicode decode issues in MicroPython. All search markers are ASCII.
+    Vàng 9999 24k Thanh Tâm (Sóc Trăng) from tuanquangdong.com.
+    Uses the site's live-price JSON endpoint (profile_id=235), the same one
+    its page script calls. Response (~700 bytes):
+      {"success": true, "data": {"products": [
+          {"name": "Vàng 9999 24k Thanh Tâm", "buy": "13.350.000đ",
+           "sell": "13.620.000đ"}, ...], "last_updated": "..."}}
     Returns (buy: int, sell: int) in VND/chỉ, or (None, None).
     """
-    CHUNK = 256
-    TAR   = b'class="tar">'
-    ENDTD = b"</td>"
-
     try:
-        import gc
-        gc.collect()
         r = requests.get(
-            "https://giavangmaothiet.com/gia-vang-thanh-tam-soc-trang-hom-nay/",
+            "https://tuanquangdong.com/wp-admin/admin-ajax.php"
+            "?action=gptqd_get_live_prices&profile_id=235",
             timeout=10,
         )
-        buf   = b""
-        stage = 0   # 0=find table, 1=find 9999, 2=find buy, 3=find sell
-        buy   = None
-        sell  = None
-
-        while True:
-            chunk = r.raw.read(CHUNK)
-            if not chunk:
-                break
-            buf += chunk
-
-            progress = True
-            while progress:
-                progress = False
-                if stage == 0:
-                    i = buf.find(b"goldbox-table")
-                    if i >= 0:
-                        buf = buf[i + 13:]
-                        stage = 1; progress = True
-                elif stage == 1:
-                    i = buf.find(b"9999")
-                    if i >= 0:
-                        buf = buf[i + 4:]
-                        stage = 2; progress = True
-                elif stage == 2 or stage == 3:
-                    i = buf.find(TAR)
-                    if i >= 0:
-                        i += 12  # len('class="tar">')
-                        j = buf.find(ENDTD, i)
-                        if j >= 0:
-                            # Price bytes are pure ASCII: "13.050.000"
-                            val = int(buf[i:j].strip().replace(b".", b"").replace(b",", b""))
-                            if stage == 2:
-                                buy = val; buf = buf[j:]; stage = 3
-                            else:
-                                sell = val; r.close(); return buy, sell
-                            progress = True
-
-            if len(buf) > 64:
-                buf = buf[-64:]
-
+        data = json.loads(r.content)
         r.close()
-        return buy, sell
+        if data.get("success"):
+            for p in data["data"]["products"]:
+                if "9999" in p["name"]:
+                    return _parse_vnd(p["buy"]), _parse_vnd(p["sell"])
     except Exception as e:
-        import gc
-        print("Thanh Tam gold error:", type(e).__name__, e, "| free:", gc.mem_free())
+        print("Thanh Tam gold error:", type(e).__name__, e)
     return None, None
+
+
+def _parse_vnd(text):
+    """'13.350.000đ' -> 13350000 (keeps digits only)."""
+    return int("".join(c for c in text if "0" <= c <= "9"))
 
 
 def fetch_all():
