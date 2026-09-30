@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MicroPython firmware for an **ESP32-CYD** (Cheap Yellow Display) board running on the device itself. The device displays two screens toggled by touch:
+MicroPython firmware for an **ESP32-CYD** (Cheap Yellow Display) board running on the device itself. The device displays four screens cycled by touch (Market → Cockpit → Gundam → Server; `SCREEN_ORDER` in `app.py`):
 - **Server screen**: Home server metrics pulled from a local Prometheus instance
-- **Market screen**: Live Gold DOJI HCM (VND) and BTC/USDT prices
+- **Market screen**: Live Gold DOJI HCM, Gold Thanh Tâm (VND) and BTC/USDT prices
+- **Gundam screen**: Static pixel-art RX-78-2 vs Char's Zaku
+- **Cockpit screen**: Animated RX-78-2 cockpit view (panoramic monitor HUD, radar sweep, heading tape, locked-on Zaku, beam shots)
 
 All `.py` files in the root are uploaded to the ESP32 filesystem and run under MicroPython. The host machine only needs the venv tools (`ampy`, `esptool`) to flash/upload.
 
@@ -48,7 +50,10 @@ ili9341.py           → ILI9341 display driver (SPI, RGB565, draw_text, fill_re
 xpt2046.py           → XPT2046 touch controller driver (tapped() polled in main loop)
 home_server_display.py → WiFi init, Prometheus queries, server screen drawing
 market_data.py       → BTC (Binance) + Gold DOJI HCM (vang.today) + Gold Thanh Tâm (tuanquangdong.com) HTTP fetchers
+gundam_theme.py      → shared RX-78-2 theme: palette, header/footer, chamfered plates, hazard stripes
 market_screen.py     → market screen drawing
+gundam_screen.py     → static RX-78-2 vs Zaku pixel-art screen (sprites as char grids, RLE → fill_rect)
+cockpit_screen.py    → cockpit HUD screen: draw_screen() full frame, tick() partial-region animation called from the main loop
 ```
 
 **Data flow**: `app.py` drives the loop → calls fetch functions in `home_server_display.py` / `market_data.py` → passes result dicts to screen drawing functions → drawing functions call `ILI9341` methods directly.
@@ -63,7 +68,7 @@ market_screen.py     → market screen drawing
 - **Serial**: `/dev/ttyUSB0` at 115200 baud (CH340 USB-UART)
 - **MAC**: `b0:cb:d8:99:39:68`
 
-MADCTL `0x68` (MV=1, MX=1, BGR=1) is required for correct landscape orientation and colour order on this specific panel.
+MADCTL `0x60` (MV=1, MX=1, RGB order) is required for correct landscape orientation and colour order on this specific panel. `0x68` (BGR=1) swaps red and blue.
 
 ## Key Constraints
 

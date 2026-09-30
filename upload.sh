@@ -38,8 +38,11 @@ FILES=(
     "xpt2046.py"             # touch controller driver
     "market_data.py"         # market data fetcher
     "ili9341.py"             # display driver
+    "gundam_theme.py"        # shared RX-78-2 theme (palette + shapes)
     "home_server_display.py" # server screen + Prometheus helpers
     "market_screen.py"       # market screen drawing
+    "gundam_screen.py"       # RX-78-2 vs Zaku pixel-art screen
+    "cockpit_screen.py"      # RX-78-2 cockpit HUD screen (uses gundam_screen)
     "app.py"                 # main loop
     "main.py"                # boot entry point
 )

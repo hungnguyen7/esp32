@@ -2,9 +2,12 @@
 app.py - Main application loop for ESP32 CYD home display.
 
 Manages hardware init, WiFi, screen state, touch toggling,
-and periodic data refresh. Two screens cycle on tap:
+and periodic data refresh. Four screens cycle on tap
+(Market -> Cockpit -> Gundam -> Server -> Market):
   SCREEN_SERVER : Prometheus home server metrics
-  SCREEN_MARKET : Gold DOJI HCM + BTC prices
+  SCREEN_MARKET : Gold DOJI HCM, Gold Thanh Tam + BTC prices
+  SCREEN_GUNDAM : static RX-78-2 vs Zaku pixel-art showcase
+  SCREEN_COCKPIT: animated RX-78-2 cockpit HUD view (tick() each loop)
 """
 import time
 from machine import Pin, SPI
@@ -13,11 +16,18 @@ from ili9341 import ILI9341
 from xpt2046 import XPT2046
 import home_server_display as server
 import market_screen as market
+import gundam_screen as gundam
+import cockpit_screen as cockpit
 import market_data as md
 
 # -- Screen IDs ---------------------------------------------------------------
-SCREEN_SERVER = 0
-SCREEN_MARKET = 1
+SCREEN_SERVER  = 0
+SCREEN_MARKET  = 1
+SCREEN_GUNDAM  = 2
+SCREEN_COCKPIT = 3
+
+# Tap order (first entry is the boot screen)
+SCREEN_ORDER = (SCREEN_MARKET, SCREEN_COCKPIT, SCREEN_GUNDAM, SCREEN_SERVER)
 
 # -- Refresh intervals --------------------------------------------------------
 SERVER_INTERVAL_SEC = 15
@@ -70,7 +80,7 @@ def main():
 
     # State
     boot_time      = time.time()
-    current_screen = SCREEN_MARKET
+    current_screen = SCREEN_ORDER[0]
     redraw         = True
     last_server_t  = time.time() - SERVER_INTERVAL_SEC  # fetch immediately
     last_market_t  = 0
@@ -80,7 +90,8 @@ def main():
     while True:
         # Touch: switch screen on falling edge (finger down)
         if touch.tapped():
-            current_screen = 1 - current_screen
+            nxt = SCREEN_ORDER.index(current_screen) + 1
+            current_screen = SCREEN_ORDER[nxt % len(SCREEN_ORDER)]
             redraw = True
 
         now_s  = time.time()
@@ -94,6 +105,18 @@ def main():
             if redraw:
                 server.draw_screen(disp, server_cache, "IP " + wifi_ip, uptime)
                 redraw = False
+
+        elif current_screen == SCREEN_GUNDAM:
+            if redraw:
+                gundam.draw_screen(disp)
+                redraw = False
+
+        elif current_screen == SCREEN_COCKPIT:
+            if redraw:
+                cockpit.draw_screen(disp)
+                redraw = False
+            else:
+                cockpit.tick(disp)  # partial redraws only (radar, HUD, target)
 
         else:  # SCREEN_MARKET
             if market_cache is None or (now_s - last_market_t) >= MARKET_INTERVAL_SEC:

@@ -1,15 +1,14 @@
 """
-market_screen.py - Market data screen drawing (Gold DOJI HCM, BTC).
+market_screen.py - Market data screen drawing (Gold DOJI HCM, Gold Thanh Tam, BTC).
+RX-78-2 Gundam theme, see gundam_theme.py.
 """
-from ili9341 import BLACK, WHITE, RED, GREEN, CYAN, YELLOW, ORANGE, DARK_GRAY
-
-SCREEN_W = 320
-SCREEN_H = 240
+import gundam_theme as gt
 
 
 def _fmt_millions(vnd):
-    """162000000 -> '162.0M'"""
-    return "{:.1f}M".format(vnd / 1_000_000)
+    """162000000 -> '162.0M', 13350000 -> '13.35M' (2 decimals below 100M)"""
+    m = vnd / 1_000_000
+    return ("{:.1f}M" if m >= 100 else "{:.2f}M").format(m)
 
 
 def _fmt_change(vnd):
@@ -30,66 +29,63 @@ def _fmt_commas(n):
 
 
 def draw_loading(disp):
-    disp.fill(BLACK)
-    disp.fill_rect(0, 0, SCREEN_W, 28, ORANGE)
-    disp.draw_text("MARKET DATA", 80, 6, BLACK, ORANGE, scale=2)
-    disp.draw_text("Fetching...", 40, 110, WHITE, BLACK, scale=2)
+    gt.begin(disp, "MARKET DATA")
+    gt.hazard_stripe(disp, 0, 96, gt.SCREEN_W)
+    disp.draw_text("LAUNCHING...", 64, 112, gt.ARMOR, gt.BG, scale=2)
+    gt.hazard_stripe(disp, 0, 136, gt.SCREEN_W)
+    gt.draw_footer(disp, "Fetching market data", "01")
+
+
+def _draw_gold(disp, y, label, color, buy, sell):
+    """Label plate + BUY/SELL lines (scale 2). Occupies y..y+50."""
+    x = gt.section(disp, y, 50, label, color)
+    if buy is not None:
+        disp.draw_text("BUY  " + _fmt_millions(buy),  x, y + 16, gt.ARMOR, gt.BG, scale=2)
+        disp.draw_text("SELL " + _fmt_millions(sell), x, y + 34, gt.YELLOW, gt.BG, scale=2)
+    else:
+        disp.draw_text("N/A", x, y + 16, gt.MUTED, gt.BG, scale=2)
 
 
 def draw_screen(disp, data, uptime_str):
     """
     Render the market screen.
     data keys: btc, gold_buy, gold_sell, gold_change, tt_buy, tt_sell
-    Layout (320×240):
-      y=0   title bar (28px)
-      y=30  DOJI HCM label (scale=1) + Mua/Ban (scale=2 each line)
-      y=90  divider
-      y=94  THANH TAM label (scale=1) + Mua/Ban (scale=2 each line)
-      y=144 divider
-      y=148 BTC label (scale=1) + price (scale=2)
-      y=178 divider
-      y=182 uptime (scale=1, single line)
+    Layout (320x240):
+      y=0   header (30px) + red trim
+      y=36  DOJI HCM plate (blue) + BUY/SELL (scale=2), change at right
+      y=92  hazard stripe
+      y=104 THANH TAM 9999 plate (red) + BUY/SELL (scale=2)
+      y=160 panel divider
+      y=166 BITCOIN plate (yellow) + price (scale=2)
+      y=220 footer: E.F.S.F. plate + uptime
     """
-    disp.fill(BLACK)
+    gt.begin(disp, "MARKET DATA")
 
-    btc         = data.get("btc")
-    gold_buy    = data.get("gold_buy")
-    gold_sell   = data.get("gold_sell")
     gold_change = data.get("gold_change") or 0
-    tt_buy      = data.get("tt_buy")
-    tt_sell     = data.get("tt_sell")
-
-    # -- Title bar ------------------------------------------------------------
-    disp.fill_rect(0, 0, SCREEN_W, 28, ORANGE)
-    disp.draw_text("MARKET DATA", 80, 6, BLACK, ORANGE, scale=2)
 
     # -- Gold DOJI HCM --------------------------------------------------------
-    disp.draw_text("GOLD DOJI HCM", 0, 30, YELLOW, BLACK, scale=1)
-    if gold_buy is not None:
-        change_color = GREEN if gold_change >= 0 else RED
-        disp.draw_text("Mua: " + _fmt_millions(gold_buy),  0, 40, YELLOW, BLACK, scale=2)
-        disp.draw_text("Ban: " + _fmt_millions(gold_sell),  0, 58, YELLOW, BLACK, scale=2)
-        disp.draw_text("Change: " + _fmt_change(gold_change), 0, 78, change_color, BLACK, scale=1)
-    else:
-        disp.draw_text("N/A", 0, 40, DARK_GRAY, BLACK, scale=2)
-    disp.hline(0, 90, SCREEN_W, DARK_GRAY)
+    _draw_gold(disp, 36, "DOJI HCM", gt.BLUE,
+               data.get("gold_buy"), data.get("gold_sell"))
+    if data.get("gold_buy") is not None:
+        change = _fmt_change(gold_change)
+        color = gt.UP if gold_change >= 0 else gt.RED
+        disp.draw_text(change, 312 - len(change) * 8, 38, color, gt.BG, scale=1)
 
-    # -- Gold Thanh Tâm 9999 --------------------------------------------------
-    disp.draw_text("GOLD THANH TAM 9999", 0, 94, YELLOW, BLACK, scale=1)
-    if tt_buy is not None:
-        disp.draw_text("Mua: " + _fmt_millions(tt_buy),  0, 104, YELLOW, BLACK, scale=2)
-        disp.draw_text("Ban: " + _fmt_millions(tt_sell), 0, 122, YELLOW, BLACK, scale=2)
-    else:
-        disp.draw_text("N/A", 0, 104, DARK_GRAY, BLACK, scale=2)
-    disp.hline(0, 144, SCREEN_W, DARK_GRAY)
+    gt.hazard_stripe(disp, 0, 92, gt.SCREEN_W)
+
+    # -- Gold Thanh Tam 9999 --------------------------------------------------
+    _draw_gold(disp, 104, "THANH TAM 9999", gt.RED,
+               data.get("tt_buy"), data.get("tt_sell"))
+
+    disp.fill_rect(0, 160, gt.SCREEN_W, 2, gt.PANEL)
 
     # -- Bitcoin --------------------------------------------------------------
-    disp.draw_text("BITCOIN", 0, 148, WHITE, BLACK, scale=1)
+    btc = data.get("btc")
+    x = gt.section(disp, 166, 34, "BITCOIN", gt.YELLOW, fg=gt.BLACK)
     if btc is not None:
-        disp.draw_text("$" + _fmt_commas(int(btc)), 0, 158, CYAN, BLACK, scale=2)
+        disp.draw_text("$" + _fmt_commas(int(btc)), x, 182, gt.ARMOR, gt.BG, scale=2)
     else:
-        disp.draw_text("N/A", 0, 158, DARK_GRAY, BLACK, scale=2)
-    disp.hline(0, 178, SCREEN_W, DARK_GRAY)
+        disp.draw_text("N/A", x, 182, gt.MUTED, gt.BG, scale=2)
 
     # -- Footer ---------------------------------------------------------------
-    disp.draw_text(uptime_str, 0, 182, DARK_GRAY, BLACK, scale=1)
+    gt.draw_footer(disp, uptime_str, "01")
