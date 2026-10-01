@@ -69,6 +69,30 @@ def init_wifi():
     return False, ""
 
 
+def ensure_wifi(timeout_sec=10):
+    """Reconnect if the link dropped (the app only connects once at boot)."""
+    wlan = network.WLAN(network.STA_IF)
+    if wlan.isconnected():
+        return True
+    print("WiFi lost (status {}), reconnecting...".format(wlan.status()))
+    try:
+        wlan.disconnect()  # stop the driver's own retry loop before connect()
+    except OSError:
+        pass
+    try:
+        wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+    except OSError as e:
+        print("WiFi reconnect error:", e)
+        return False
+    for _ in range(timeout_sec * 5):
+        if wlan.isconnected():
+            print("WiFi reconnected:", wlan.ifconfig()[0])
+            return True
+        time.sleep_ms(200)
+    print("WiFi reconnect timeout")
+    return False
+
+
 # -- Prometheus ---------------------------------------------------------------
 
 def query_prometheus(promql):

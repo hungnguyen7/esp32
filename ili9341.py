@@ -211,13 +211,6 @@ class ILI9341:
         small_w = chars * 8
         draw_w = min(small_w * scale, self.width - x)
         draw_h = min(8 * scale, self.height - y)
-        row_w = min(draw_w, self.width - x)
-
-        # --- Render 1× sentinel buffer (bg=0x0000, fg=0xFFFF) ---
-        small_buf = bytearray(small_w * 8 * 2)
-        small_fb = framebuf.FrameBuffer(small_buf, small_w, 8, framebuf.RGB565)
-        small_fb.fill(0x0000)
-        small_fb.text(string, 0, 0, 0xFFFF)
 
         if scale == 1:
             fg_le = _swap_bytes(fg)
@@ -226,45 +219,48 @@ class ILI9341:
             out_fb = framebuf.FrameBuffer(out_buf, small_w, 8, framebuf.RGB565)
             out_fb.fill(bg_le)
             out_fb.text(string, 0, 0, fg_le)
+            mv = memoryview(out_buf)
             # Write one display row at a time — PASET spans the full width
             # so consecutive pixels go left-to-right on screen (correct).
-            for row in range(min(8, self.height - y)):
-                self._set_window(x, y + row, x + row_w - 1, y + row)
+            for row in range(draw_h):
+                self._set_window(x, y + row, x + draw_w - 1, y + row)
                 self.dc(1)
                 self.cs(0)
                 offset = row * small_w * 2
-                self.spi.write(out_buf[offset: offset + row_w * 2])
+                self.spi.write(mv[offset: offset + draw_w * 2])
                 self.cs(1)
             return
 
-        # --- Scale > 1: expand each source pixel to scale×scale block ---
+        # --- Scale > 1: 1-bit glyph buffer + one reused scaled row ---
+        # Keeps allocations small (chars*8 bytes + draw_w*2 bytes). Large
+        # contiguous buffers here made the GC heap grow into the IDF heap
+        # and starved the WiFi driver.
+        mono = bytearray(chars * 8)
+        framebuf.FrameBuffer(mono, small_w, 8, framebuf.MONO_HLSB).text(string, 0, 0, 1)
         fg_hi, fg_lo = (fg >> 8) & 0xFF, fg & 0xFF
         bg_hi, bg_lo = (bg >> 8) & 0xFF, bg & 0xFF
+        cols_src = min(small_w, (draw_w + scale - 1) // scale)
+        row_buf = bytearray(draw_w * 2)
 
-        cols_src = min(small_w, draw_w // scale)
-        rows_src = min(8,       draw_h // scale)
-        scaled_buf = bytearray(draw_w * draw_h * 2)
-
-        for row in range(rows_src):
+        for row in range((draw_h + scale - 1) // scale):
+            base = row * chars
+            i = 0
             for col in range(cols_src):
-                src_i = (row * small_w + col) * 2
-                is_set = small_buf[src_i] | small_buf[src_i + 1]
-                c_hi = fg_hi if is_set else bg_hi
-                c_lo = fg_lo if is_set else bg_lo
-                for sr in range(scale):
-                    for sc in range(scale):
-                        br = row * scale + sr
-                        bc = col * scale + sc
-                        if br < draw_h and bc < draw_w:
-                            bi = (br * draw_w + bc) * 2
-                            scaled_buf[bi] = c_hi
-                            scaled_buf[bi + 1] = c_lo
-
-        # Write one display row at a time.
-        for br in range(draw_h):
-            self._set_window(x, y + br, x + draw_w - 1, y + br)
-            self.dc(1)
-            self.cs(0)
-            offset = br * draw_w * 2
-            self.spi.write(scaled_buf[offset: offset + draw_w * 2])
-            self.cs(1)
+                if mono[base + (col >> 3)] & (0x80 >> (col & 7)):
+                    hi, lo = fg_hi, fg_lo
+                else:
+                    hi, lo = bg_hi, bg_lo
+                for _ in range(scale):
+                    if i < draw_w * 2:
+                        row_buf[i] = hi
+                        row_buf[i + 1] = lo
+                        i += 2
+            for sr in range(scale):
+                yy = y + row * scale + sr
+                if yy >= y + draw_h:
+                    break
+                self._set_window(x, yy, x + draw_w - 1, yy)
+                self.dc(1)
+                self.cs(0)
+                self.spi.write(row_buf)
+                self.cs(1)
