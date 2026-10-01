@@ -20,6 +20,10 @@ except ImportError:
     import json
 
 from config import WIFI_SSID, WIFI_PASSWORD, PROMETHEUS_HOST, PROMETHEUS_PORT
+try:
+    from config import DNS_SERVER
+except ImportError:
+    DNS_SERVER = "1.1.1.1"
 import gundam_theme as gt
 
 SCREEN_W = 320
@@ -56,6 +60,7 @@ def init_wifi():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     if wlan.isconnected():
+        _apply_dns(wlan)
         return True, wlan.ifconfig()[0]
     print("Connecting to '{}'...".format(WIFI_SSID))
     wlan.connect(WIFI_SSID, WIFI_PASSWORD)
@@ -63,10 +68,27 @@ def init_wifi():
         if wlan.isconnected():
             ip = wlan.ifconfig()[0]
             print("WiFi connected:", ip)
+            _apply_dns(wlan)
             return True, ip
         time.sleep(1)
     print("WiFi timeout")
     return False, ""
+
+
+def _apply_dns(wlan):
+    """
+    Use DNS_SERVER instead of the DHCP-provided resolver. Measured on this
+    network: the LAN resolver failed (-202) right after connect and took
+    6-7 s per lookup otherwise; 1.1.1.1 answers in ~60-200 ms.
+    Note: MicroPython 1.23 ifconfig() keeps the DHCP address but makes the
+    config static, so the lease is not renewed; a reboot re-runs DHCP.
+    """
+    if not DNS_SERVER:
+        return
+    ip, mask, gw, dns = wlan.ifconfig()
+    if dns != DNS_SERVER:
+        wlan.ifconfig((ip, mask, gw, DNS_SERVER))
+        print("DNS:", dns, "->", DNS_SERVER)
 
 
 def ensure_wifi(timeout_sec=10):
@@ -87,6 +109,7 @@ def ensure_wifi(timeout_sec=10):
     for _ in range(timeout_sec * 5):
         if wlan.isconnected():
             print("WiFi reconnected:", wlan.ifconfig()[0])
+            _apply_dns(wlan)
             return True
         time.sleep_ms(200)
     print("WiFi reconnect timeout")
@@ -102,8 +125,10 @@ def query_prometheus(promql):
     )
     try:
         resp = requests.get(url, timeout=5)
-        data = json.loads(resp.content)
-        resp.close()
+        try:
+            data = json.loads(resp.content)
+        finally:
+            resp.close()  # close even if the body is not valid JSON
         if data.get("status") == "success":
             results = data["data"]["result"]
             if results:
@@ -134,11 +159,21 @@ def _bar_color(percent):
     return gt.RED
 
 
-def _draw_progress_bar(disp, x, y, w, h, percent):
-    """Segmented energy gauge: armor frame with 8px cells."""
-    disp.rect(x, y, w, h, gt.ARMOR)
-    inner_x, inner_y = x + 2, y + 2
-    inner_w, inner_h = w - 4, h - 4
+BAR_X, BAR_W, BAR_H = 12, gt.SCREEN_W - 20, 12
+VALUE_X = 12 + 6 * 16
+# (y, label, metrics key, value format, has gauge)
+_METRICS = (
+    (36,  "CPU",  "cpu",  "{:.1f}%", True),
+    (70,  "RAM",  "ram",  "{:.1f}%", True),
+    (104, "DISK", "disk", "{:.1f}%", True),
+    (138, "LOAD", "load", "{:.2f}",  False),
+)
+
+
+def _draw_bar_fill(disp, y, percent):
+    """Segmented energy gauge cells inside the armor frame."""
+    inner_x, inner_y = BAR_X + 2, y + 2
+    inner_w, inner_h = BAR_W - 4, BAR_H - 4
     disp.fill_rect(inner_x, inner_y, inner_w, inner_h, gt.BLACK)
     if percent is None or percent <= 0:
         return
@@ -150,12 +185,10 @@ def _draw_progress_bar(disp, x, y, w, h, percent):
         cx += 10
 
 
-def _draw_metric(disp, y, label, value_str, percent=None):
-    disp.fill_rect(0, y, 4, 30 if percent is not None else 16, gt.BLUE)
-    disp.draw_text(label, 12, y, gt.YELLOW, gt.BG, scale=2)
-    disp.draw_text(value_str[:12], 12 + 6 * 16, y, gt.ARMOR, gt.BG, scale=2)
-    if percent is not None:
-        _draw_progress_bar(disp, 12, y + 18, gt.SCREEN_W - 20, 12, percent)
+def _draw_value(disp, y, fmt, value):
+    text = fmt.format(value) if value is not None else "N/A"
+    # pad to a fixed width so a shorter value fully covers the previous one
+    disp.draw_text("{:<7}".format(text[:7]), VALUE_X, y, gt.ARMOR, gt.BG, scale=2)
 
 
 def draw_boot_screen(disp, message, detail=""):
@@ -171,7 +204,7 @@ def draw_boot_screen(disp, message, detail=""):
 
 def draw_screen(disp, metrics, wifi_ip, uptime_str):
     """
-    Layout (320x240):
+    Full redraw (on screen switch). Layout (320x240):
       y=0   header (30px) + red trim
       y=36/70/104  CPU/RAM/DISK value (scale=2) + segmented gauge
       y=138 LOAD (scale=2)
@@ -180,16 +213,11 @@ def draw_screen(disp, metrics, wifi_ip, uptime_str):
       y=220 footer: E.F.S.F. plate + uptime
     """
     gt.begin(disp, "HOME SERVER")
-
-    cpu  = metrics.get("cpu")
-    ram  = metrics.get("ram")
-    disk = metrics.get("disk")
-    load = metrics.get("load")
-
-    _draw_metric(disp, 36,  "CPU",  "{:.1f}%".format(cpu)  if cpu  is not None else "N/A", cpu)
-    _draw_metric(disp, 70,  "RAM",  "{:.1f}%".format(ram)  if ram  is not None else "N/A", ram)
-    _draw_metric(disp, 104, "DISK", "{:.1f}%".format(disk) if disk is not None else "N/A", disk)
-    _draw_metric(disp, 138, "LOAD", "{:.2f}".format(load)  if load is not None else "N/A", None)
+    for y, label, key, fmt, gauge in _METRICS:
+        disp.fill_rect(0, y, 4, 30 if gauge else 16, gt.BLUE)
+        disp.draw_text(label, 12, y, gt.YELLOW, gt.BG, scale=2)
+        if gauge:
+            disp.rect(BAR_X, y + 18, BAR_W, BAR_H, gt.ARMOR)
 
     disp.fill_rect(0, 160, gt.SCREEN_W, 2, gt.PANEL)
     w = gt.tag(disp, 8, 164, "PROM", gt.PANEL)
@@ -197,5 +225,14 @@ def draw_screen(disp, metrics, wifi_ip, uptime_str):
                    8 + w + 6, 166, gt.MUTED, gt.BG, scale=1)
     w = gt.tag(disp, 8, 180, "LINK", gt.PANEL)
     disp.draw_text(wifi_ip[:32], 8 + w + 6, 182, gt.MUTED, gt.BG, scale=1)
+    update_screen(disp, metrics, uptime_str)
 
+
+def update_screen(disp, metrics, uptime_str):
+    """Partial redraw after a refresh: values, gauge cells and uptime only (no flicker)."""
+    for y, label, key, fmt, gauge in _METRICS:
+        value = metrics.get(key)
+        _draw_value(disp, y, fmt, value)
+        if gauge:
+            _draw_bar_fill(disp, y + 18, value)
     gt.draw_footer(disp, uptime_str, "02")

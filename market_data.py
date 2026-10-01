@@ -17,15 +17,20 @@ except ImportError:
     import json
 
 
+def _get_json(url, timeout):
+    """GET url and parse JSON; the socket is closed even if parsing fails."""
+    r = requests.get(url, timeout=timeout)
+    try:
+        return json.loads(r.content)
+    finally:
+        r.close()
+
+
 def fetch_btc():
     """BTC/USDT price in USD. Returns float or None."""
     try:
-        r = requests.get(
-            "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
-            timeout=6,
-        )
-        data = json.loads(r.content)
-        r.close()
+        data = _get_json(
+            "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", 6)
         return float(data["price"])
     except Exception as e:
         print("BTC error:", e)
@@ -40,12 +45,7 @@ def fetch_gold_doji():
     Returns (buy: int, sell: int, change_buy: int) or (None, None, None).
     """
     try:
-        r = requests.get(
-            "https://www.vang.today/api/prices?type=DOHCML",
-            timeout=8,
-        )
-        data = json.loads(r.content)
-        r.close()
+        data = _get_json("https://www.vang.today/api/prices?type=DOHCML", 8)
         if data.get("success"):
             buy = int(data["buy"]) / 10
             sell = int(data["sell"]) / 10
@@ -67,13 +67,9 @@ def fetch_gold_thanhtam():
     Returns (buy: int, sell: int) in VND/chỉ, or (None, None).
     """
     try:
-        r = requests.get(
+        data = _get_json(
             "https://tuanquangdong.com/wp-admin/admin-ajax.php"
-            "?action=gptqd_get_live_prices&profile_id=235",
-            timeout=10,
-        )
-        data = json.loads(r.content)
-        r.close()
+            "?action=gptqd_get_live_prices&profile_id=235", 10)
         if data.get("success"):
             for p in data["data"]["products"]:
                 if "9999" in p["name"]:

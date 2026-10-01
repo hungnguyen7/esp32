@@ -51,21 +51,12 @@ SERVER_INTERVAL_SEC = 15
 MARKET_INTERVAL_SEC = 30 * 60  # market data refresh: every 30 minutes
 
 # -- Hardware pins ------------------------------------------------------------
-# Display (HSPI, bus 1)
-LCD_CLK_PIN  = 14
-LCD_MOSI_PIN = 13
-LCD_MISO_PIN = 12
-LCD_CS_PIN   = 15
-LCD_DC_PIN   = 2
-LCD_RST_PIN  = 4
-LCD_BL_PIN   = 21
-
-# Touch (VSPI, bus 2)
-TOUCH_CLK_PIN  = 25
-TOUCH_MOSI_PIN = 32
-TOUCH_MISO_PIN = 39
-TOUCH_CS_PIN   = 33
-TOUCH_IRQ_PIN  = 36
+from board_config import (
+    LCD_SPI_BUS, LCD_BAUDRATE, LCD_CLK_PIN, LCD_MOSI_PIN, LCD_MISO_PIN,
+    LCD_CS_PIN, LCD_DC_PIN, LCD_RST_PIN, LCD_BL_PIN,
+    TOUCH_SPI_BUS, TOUCH_BAUDRATE, TOUCH_CLK_PIN, TOUCH_MOSI_PIN,
+    TOUCH_MISO_PIN, TOUCH_CS_PIN, TOUCH_IRQ_PIN,
+)
 
 
 def main():
@@ -74,14 +65,14 @@ def main():
 
     # Display SPI
     display_spi = SPI(
-        1, baudrate=40_000_000, polarity=0, phase=0,
+        LCD_SPI_BUS, baudrate=LCD_BAUDRATE, polarity=0, phase=0,
         sck=Pin(LCD_CLK_PIN), mosi=Pin(LCD_MOSI_PIN), miso=Pin(LCD_MISO_PIN),
     )
     disp = ILI9341(display_spi, LCD_CS_PIN, LCD_DC_PIN, LCD_RST_PIN)
 
     # Touch SPI
     touch_spi = SPI(
-        2, baudrate=1_000_000, polarity=0, phase=0,
+        TOUCH_SPI_BUS, baudrate=TOUCH_BAUDRATE, polarity=0, phase=0,
         sck=Pin(TOUCH_CLK_PIN), mosi=Pin(TOUCH_MOSI_PIN), miso=Pin(TOUCH_MISO_PIN),
     )
     touch = XPT2046(touch_spi, TOUCH_CS_PIN, TOUCH_IRQ_PIN)
@@ -121,7 +112,8 @@ def main():
                 server.ensure_wifi()
                 server_cache  = server.fetch_metrics()
                 last_server_t = now_s
-                redraw        = True
+                if not redraw:
+                    server.update_screen(disp, server_cache, uptime)
             if redraw:
                 server.draw_screen(disp, server_cache, "IP " + wifi_ip, uptime)
                 redraw = False
