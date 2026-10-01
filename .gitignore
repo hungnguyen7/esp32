@@ -1,3 +1,4 @@
 *.bin
 config.py
 __pycache__/
+build/
