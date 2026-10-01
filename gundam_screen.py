@@ -192,4 +192,4 @@ def draw_screen(disp):
     draw_sprite(disp, RX78, 14, 58)
     draw_sprite(disp, ZAKU, 174, 58)
     disp.draw_text("VS", 152, 128, gt.YELLOW, gt.BG, scale=1)
-    gt.draw_footer(disp, "E.F.S.F. vs ZEON", "03")
+    gt.draw_footer(disp, "E.F.S.F. vs ZEON")

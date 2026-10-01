@@ -111,7 +111,9 @@ def main():
                 gc.collect()
                 server.ensure_wifi()
                 server_cache  = server.fetch_metrics()
-                last_server_t = now_s
+                # stamp after the fetch so a slow/failed fetch still leaves a
+                # full interval for touch polling before the next one
+                last_server_t = time.time()
                 if not redraw:
                     server.update_screen(disp, server_cache, uptime)
             if redraw:

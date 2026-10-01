@@ -64,7 +64,7 @@ def draw_loading(disp):
     disp.draw_text("PILOT: AMURO RAY", 70, 120, gt.ARMOR, gt.BG, scale=1)
     gt.hazard_stripe(disp, 0, 160, gt.SCREEN_W)
     disp.draw_text("STANDBY...", 80, 180, gt.YELLOW, gt.BG, scale=2)
-    gt.draw_footer(disp, "Fetching market data", "01")
+    gt.draw_footer(disp, "Fetching market data")
 
 
 def loading_step(disp, i, ok, data):
@@ -94,7 +94,7 @@ def launch(disp):
     import gundam_screen as gs
     disp.fill_rect(0, 176, gt.SCREEN_W, 24, gt.BG)
     disp.draw_text("AMURO, IKIMASU!", 40, 180, gt.YELLOW, gt.BG, scale=2)
-    gt.draw_footer(disp, "LAUNCH!", "01")
+    gt.draw_footer(disp, "LAUNCH!")
     time.sleep_ms(500)
     x = RX_X
     while x < gt.SCREEN_W - 44:
@@ -161,4 +161,4 @@ def draw_screen(disp, data, uptime_str):
         disp.draw_text("N/A", x, 182, gt.MUTED, gt.BG, scale=2)
 
     # -- Footer ---------------------------------------------------------------
-    gt.draw_footer(disp, uptime_str, "01")
+    gt.draw_footer(disp, uptime_str)

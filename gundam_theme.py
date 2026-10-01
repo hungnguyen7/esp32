@@ -73,14 +73,12 @@ def draw_header(disp, title, code="RX-78-2"):
     disp.fill_rect(0, HEADER_H, SCREEN_W, 2, RED)
 
 
-def draw_footer(disp, text, unit="01"):
-    """Frame-gray footer: E.F.S.F. plate, status text, unit number."""
+def draw_footer(disp, text):
+    """Frame-gray footer: E.F.S.F. plate + status text."""
     disp.fill_rect(0, FOOTER_Y, SCREEN_W, SCREEN_H - FOOTER_Y, PANEL)
     disp.fill_rect(0, FOOTER_Y, SCREEN_W, 1, MUTED)
     tag(disp, 4, FOOTER_Y + 4, "E.F.S.F.", YELLOW, fg=BLACK)
-    disp.draw_text(text[:22], 94, FOOTER_Y + 6, ARMOR, PANEL, scale=1)
-    chamfer_rect(disp, 286, FOOTER_Y + 4, 30, 12, RED, cut=3)
-    disp.draw_text(unit[:2], 293, FOOTER_Y + 6, ARMOR, RED, scale=1)
+    disp.draw_text(text[:27], 94, FOOTER_Y + 6, ARMOR, PANEL, scale=1)
 
 
 def section(disp, y, h, label, color, fg=ARMOR):

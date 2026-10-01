@@ -118,33 +118,44 @@ def ensure_wifi(timeout_sec=10):
 
 # -- Prometheus ---------------------------------------------------------------
 
-def query_prometheus(promql):
-    """Run instant PromQL query. Returns float or None."""
+def query_prometheus(promql, timeout=3):
+    """
+    Run instant PromQL query. Returns float or None.
+    Network errors (OSError) are raised so fetch_metrics can stop early.
+    """
     url = "http://{}:{}/api/v1/query?query={}".format(
         PROMETHEUS_HOST, PROMETHEUS_PORT, url_encode(promql)
     )
+    resp = requests.get(url, timeout=timeout)
     try:
-        resp = requests.get(url, timeout=5)
-        try:
-            data = json.loads(resp.content)
-        finally:
-            resp.close()  # close even if the body is not valid JSON
-        if data.get("status") == "success":
-            results = data["data"]["result"]
-            if results:
-                return float(results[0]["value"][1])
-    except Exception as e:
-        print("Prometheus error:", e)
+        data = json.loads(resp.content)
+    except ValueError as e:
+        print("Prometheus bad JSON:", e)
+        return None
+    finally:
+        resp.close()  # close even if the body is not valid JSON
+    if data.get("status") == "success":
+        results = data["data"]["result"]
+        if results:
+            return float(results[0]["value"][1])
     return None
 
 
 def fetch_metrics():
-    return {
-        "cpu":  query_prometheus(QUERY_CPU),
-        "ram":  query_prometheus(QUERY_RAM),
-        "disk": query_prometheus(QUERY_DISK),
-        "load": query_prometheus(QUERY_LOAD),
-    }
+    """
+    Query all metrics. If Prometheus is unreachable, give up after the first
+    failed request instead of waiting out every timeout: 4 x 5 s timeouts
+    used to block the main loop ~22 s, longer than the 15 s refresh, so
+    touches were never read on the server screen.
+    """
+    metrics = {"cpu": None, "ram": None, "disk": None, "load": None}
+    try:
+        for key, query in (("cpu", QUERY_CPU), ("ram", QUERY_RAM),
+                           ("disk", QUERY_DISK), ("load", QUERY_LOAD)):
+            metrics[key] = query_prometheus(query)
+    except OSError as e:
+        print("Prometheus unreachable:", e)
+    return metrics
 
 
 # -- Drawing ------------------------------------------------------------------
@@ -199,7 +210,7 @@ def draw_boot_screen(disp, message, detail=""):
     if detail:
         disp.draw_text(detail[:37], x, 104, gt.YELLOW, gt.BG, scale=1)
     gt.hazard_stripe(disp, 0, 128, gt.SCREEN_W)
-    gt.draw_footer(disp, "RX-78-2 GUNDAM", "00")
+    gt.draw_footer(disp, "RX-78-2 GUNDAM")
 
 
 def draw_screen(disp, metrics, wifi_ip, uptime_str):
@@ -235,4 +246,4 @@ def update_screen(disp, metrics, uptime_str):
         _draw_value(disp, y, fmt, value)
         if gauge:
             _draw_bar_fill(disp, y + 18, value)
-    gt.draw_footer(disp, uptime_str, "02")
+    gt.draw_footer(disp, uptime_str)
