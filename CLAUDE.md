@@ -78,7 +78,7 @@ MADCTL `0x60` (MV=1, MX=1, RGB order) is required for correct landscape orientat
 - `config.py` contains real credentials and is intentionally excluded from `.gitignore` tracking but **must** be uploaded to the device. Check `.gitignore` before assuming it is committed.
 - Screen dimensions are 320×240. All drawing coordinates are hardcoded for this resolution.
 - `upload.sh` uploads files in dependency order — preserve that order if adding new files.
-- Refresh intervals: server screen every 15 s, market screen every 60 s (constants in `app.py`).
+- Refresh intervals: server screen every 15 s, market data every 30 min (constants in `app.py`).
 
 ## Data Notes
 

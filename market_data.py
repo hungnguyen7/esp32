@@ -88,20 +88,25 @@ def _parse_vnd(text):
     return int("".join(c for c in text if "0" <= c <= "9"))
 
 
-def fetch_all():
+def fetch_all(on_step=None):
     """
     Fetch BTC, DOJI HCM gold, and Thanh Tâm gold.
     Returns dict: btc, gold_buy, gold_sell, gold_change, tt_buy, tt_sell.
     Any value may be None if the source is unreachable.
+
+    on_step(index, ok, data) is called after each source (index 0..2) so a
+    loading screen can show progress between the blocking HTTP calls.
     """
-    btc = fetch_btc()
-    gold_buy, gold_sell, gold_change = fetch_gold_doji()
-    tt_buy, tt_sell = fetch_gold_thanhtam()
-    return {
-        "btc":         btc,
-        "gold_buy":    gold_buy,
-        "gold_sell":   gold_sell,
-        "gold_change": gold_change,
-        "tt_buy":      tt_buy,
-        "tt_sell":     tt_sell,
-    }
+    data = {}
+
+    def step(i, ok):
+        if on_step:
+            on_step(i, ok, data)
+
+    data["btc"] = fetch_btc()
+    step(0, data["btc"] is not None)
+    data["gold_buy"], data["gold_sell"], data["gold_change"] = fetch_gold_doji()
+    step(1, data["gold_buy"] is not None)
+    data["tt_buy"], data["tt_sell"] = fetch_gold_thanhtam()
+    step(2, data["tt_buy"] is not None)
+    return data

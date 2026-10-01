@@ -10,17 +10,30 @@ and periodic data refresh. Five screens cycle on tap
   SCREEN_COCKPIT: animated RX-78-2 cockpit HUD view (tick() each loop)
   SCREEN_ZAKU_COCKPIT: animated Zeon-style Zaku cockpit view (tick() each loop)
 """
+import gc
 import time
 from machine import Pin, SPI
 
+# Memory note: on ESP32 the MicroPython GC heap grows into the IDF heap when
+# an allocation fails even after a collection, and never gives it back. The
+# WiFi driver lives on the IDF heap, so letting the GC heap grow (compiling
+# big modules, fragmentation) starves WiFi until it drops. Collect between
+# imports and around heavy work to keep the GC heap from growing.
 from ili9341 import ILI9341
 from xpt2046 import XPT2046
+gc.collect()
 import home_server_display as server
-import market_screen as market
-import gundam_screen as gundam
-import cockpit_screen as cockpit
-import zaku_cockpit_screen as zaku_cockpit
+gc.collect()
 import market_data as md
+gc.collect()
+import market_screen as market
+gc.collect()
+import gundam_screen as gundam
+gc.collect()
+import cockpit_screen as cockpit
+gc.collect()
+import zaku_cockpit_screen as zaku_cockpit
+gc.collect()
 
 # -- Screen IDs ---------------------------------------------------------------
 SCREEN_SERVER  = 0
@@ -35,7 +48,7 @@ SCREEN_ORDER = (SCREEN_MARKET, SCREEN_COCKPIT, SCREEN_ZAKU_COCKPIT,
 
 # -- Refresh intervals --------------------------------------------------------
 SERVER_INTERVAL_SEC = 15
-MARKET_INTERVAL_SEC = 60
+MARKET_INTERVAL_SEC = 30 * 60  # market data refresh: every 30 minutes
 
 # -- Hardware pins ------------------------------------------------------------
 # Display (HSPI, bus 1)
@@ -97,12 +110,15 @@ def main():
             nxt = SCREEN_ORDER.index(current_screen) + 1
             current_screen = SCREEN_ORDER[nxt % len(SCREEN_ORDER)]
             redraw = True
+            gc.collect()
 
         now_s  = time.time()
         uptime = server.format_uptime(now_s - boot_time)
 
         if current_screen == SCREEN_SERVER:
             if (now_s - last_server_t) >= SERVER_INTERVAL_SEC:
+                gc.collect()
+                server.ensure_wifi()
                 server_cache  = server.fetch_metrics()
                 last_server_t = now_s
                 redraw        = True
@@ -131,8 +147,13 @@ def main():
 
         else:  # SCREEN_MARKET
             if market_cache is None or (now_s - last_market_t) >= MARKET_INTERVAL_SEC:
+                gc.collect()
+                server.ensure_wifi()
                 market.draw_loading(disp)
-                market_cache  = md.fetch_all()
+                market_cache  = md.fetch_all(
+                    lambda i, ok, data: market.loading_step(disp, i, ok, data))
+                market.launch(disp)
+                gc.collect()
                 last_market_t = now_s
                 redraw        = True
             if redraw:
